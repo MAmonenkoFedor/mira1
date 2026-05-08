@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package, FolderOpen, Image, ShoppingBag, LayoutDashboard, LogOut, ChevronLeft, FileText, MessageSquare, BookOpen, Sparkles, SlidersHorizontal } from "lucide-react";
+import { Package, FolderOpen, Image, ShoppingBag, LayoutDashboard, LogOut, ChevronLeft, FileText, MessageSquare, BookOpen, Sparkles, SlidersHorizontal, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,8 @@ const navItems = [
   { title: "Баннеры", path: "/admin/banners", icon: Image },
   { title: "Hero блок", path: "/admin/hero", icon: Sparkles },
   { title: "Витрина", path: "/admin/home-layout", icon: SlidersHorizontal },
+  { title: "Сообщения", path: "/admin/client-messages", icon: Mail },
+  { title: "Интеграции", path: "/admin/integrations", icon: KeyRound },
   { title: "Заказы", path: "/admin/orders", icon: ShoppingBag },
   { title: "Отзывы", path: "/admin/reviews", icon: MessageSquare },
   { title: "Страницы", path: "/admin/pages", icon: FileText },

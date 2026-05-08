@@ -28,6 +28,8 @@ import AdminPages from "./pages/admin/Pages";
 import AdminArticles from "./pages/admin/Articles";
 import AdminHero from "./pages/admin/Hero";
 import AdminHomeLayout from "./pages/admin/HomeLayout";
+import AdminClientMessages from "./pages/admin/ClientMessages";
+import IntegrationsAdmin from "./pages/admin/Integrations";
 import InfoPage from "./pages/InfoPage";
 import ArticlesList from "./pages/ArticlesList";
 import ArticleDetail from "./pages/ArticleDetail";
@@ -62,6 +64,8 @@ const App = () => (
                 <Route path="/admin/banners" element={<AdminGuard><AdminBanners /></AdminGuard>} />
                 <Route path="/admin/hero" element={<AdminGuard><AdminHero /></AdminGuard>} />
                 <Route path="/admin/home-layout" element={<AdminGuard><AdminHomeLayout /></AdminGuard>} />
+                <Route path="/admin/client-messages" element={<AdminGuard><AdminClientMessages /></AdminGuard>} />
+                <Route path="/admin/integrations" element={<AdminGuard><IntegrationsAdmin /></AdminGuard>} />
                 <Route path="/admin/orders" element={<AdminGuard><AdminOrders /></AdminGuard>} />
                 <Route path="/admin/reviews" element={<AdminGuard><AdminReviews /></AdminGuard>} />
                 <Route path="/admin/pages" element={<AdminGuard><AdminPages /></AdminGuard>} />

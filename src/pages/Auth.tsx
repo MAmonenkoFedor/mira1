@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -9,34 +9,38 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
+import { useClientMessages } from "@/hooks/useClientMessages";
 
 const Auth = () => {
-  const { user, signInWithPassword, requestOtp, verifyOtp } = useAuth();
+  const { user, signInWithPassword, requestEmailOtp, verifyEmailOtp } = useAuth();
+  const { data: clientMessages } = useClientMessages();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"phone" | "email">("phone");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"password" | "emailOtp">("password");
+  const [otpStep, setOtpStep] = useState<"request" | "verify">("request");
+  const [passwordEmail, setPasswordEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [requestId, setRequestId] = useState("");
+  const authNotice =
+    clientMessages?.authNotice ||
+    "Сейчас доступны вход и подтверждение по email. Вход по SMS будет добавлен следующим этапом.";
 
   if (user) {
     return <Navigate to="/account" replace />;
   }
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSendEmailOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone.trim()) return;
+    if (!otpEmail.trim()) return;
 
     setLoading(true);
-    const formattedPhone = phone.startsWith("+") ? phone : `+${phone}`;
     try {
-      const data = await requestOtp(formattedPhone);
+      const data = await requestEmailOtp(otpEmail.trim().toLowerCase());
       setRequestId(data.requestId);
-      setStep("otp");
-      toast.success("Код отправлен на " + formattedPhone);
+      setOtpStep("verify");
+      toast.success(`Код отправлен на ${otpEmail.trim().toLowerCase()}`);
     } catch {
       toast.error("Ошибка отправки кода");
     } finally {
@@ -44,13 +48,12 @@ const Auth = () => {
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyEmailOtp = async () => {
     if (otp.length !== 6) return;
 
     setLoading(true);
-    const formattedPhone = phone.startsWith("+") ? phone : `+${phone}`;
     try {
-      await verifyOtp(formattedPhone, otp, requestId);
+      await verifyEmailOtp(otpEmail.trim().toLowerCase(), otp, requestId);
       toast.success("Вход выполнен!");
       navigate("/account");
     } catch {
@@ -62,11 +65,11 @@ const Auth = () => {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    if (!passwordEmail.trim() || !password.trim()) return;
 
     setLoading(true);
     try {
-      await signInWithPassword(email, password);
+      await signInWithPassword(passwordEmail.trim().toLowerCase(), password);
       toast.success("Вход выполнен!");
       navigate("/account");
     } catch {
@@ -82,23 +85,29 @@ const Auth = () => {
       <main className="flex-1 flex items-center justify-center bg-secondary/30 px-4">
         <div className="w-full max-w-sm">
           <div className="bg-card rounded-xl p-6 sm:p-8 shadow-card">
-            {/* Mode tabs */}
             <div className="flex gap-2 mb-6">
               <button
-                onClick={() => { setMode("phone"); setStep("phone"); }}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${mode === "phone" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setMode("password")}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${mode === "password" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
               >
-                <Phone className="w-4 h-4 inline mr-1" /> Телефон
+                <Mail className="w-4 h-4 inline mr-1" /> Email + пароль
               </button>
               <button
-                onClick={() => setMode("email")}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${mode === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                onClick={() => {
+                  setMode("emailOtp");
+                  setOtpStep("request");
+                  setOtp("");
+                }}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${mode === "emailOtp" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
               >
-                <Mail className="w-4 h-4 inline mr-1" /> Email
+                <Mail className="w-4 h-4 inline mr-1" /> Email + код
               </button>
             </div>
+            <p className="text-xs text-muted-foreground text-center mb-6">
+              {authNotice}
+            </p>
 
-            {mode === "email" ? (
+            {mode === "password" ? (
               <>
                 <h1 className="font-heading font-bold text-xl text-center mb-2">Вход по Email</h1>
                 <p className="text-sm text-muted-foreground text-center mb-6">Введите email и пароль</p>
@@ -106,8 +115,8 @@ const Auth = () => {
                   <Input
                     type="email"
                     placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={passwordEmail}
+                    onChange={(e) => setPasswordEmail(e.target.value)}
                     required
                   />
                   <Input
@@ -125,27 +134,23 @@ const Auth = () => {
               </>
             ) : (
               <>
-                <div className="w-14 h-14 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Phone className="w-7 h-7 text-primary" />
-                </div>
                 <h1 className="font-heading font-bold text-xl text-center mb-2">
-                  {step === "phone" ? "Вход в личный кабинет" : "Введите код"}
+                  {otpStep === "request" ? "Вход по коду из Email" : "Введите код"}
                 </h1>
                 <p className="text-sm text-muted-foreground text-center mb-6">
-                  {step === "phone"
-                    ? "Введите номер телефона для получения SMS-кода"
-                    : `Мы отправили код на ${phone.startsWith("+") ? phone : "+" + phone}`}
+                  {otpStep === "request"
+                    ? "Введите email для получения одноразового кода"
+                    : `Мы отправили код на ${otpEmail.trim().toLowerCase()}`}
                 </p>
 
-                {step === "phone" ? (
-                  <form onSubmit={handleSendOtp} className="space-y-4">
+                {otpStep === "request" ? (
+                  <form onSubmit={handleSendEmailOtp} className="space-y-4">
                     <Input
-                      type="tel"
-                      placeholder="+7 (___) ___-__-__"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      type="email"
+                      placeholder="email@example.com"
+                      value={otpEmail}
+                      onChange={(e) => setOtpEmail(e.target.value)}
                       required
-                      className="text-center text-lg"
                     />
                     <Button type="submit" className="w-full btn-gold" disabled={loading}>
                       {loading ? "Отправка..." : "Получить код"}
@@ -167,7 +172,7 @@ const Auth = () => {
                       </InputOTP>
                     </div>
                     <Button
-                      onClick={handleVerifyOtp}
+                      onClick={handleVerifyEmailOtp}
                       className="w-full btn-gold"
                       disabled={loading || otp.length !== 6}
                     >
@@ -175,10 +180,13 @@ const Auth = () => {
                     </Button>
                     <button
                       type="button"
-                      onClick={() => { setStep("phone"); setOtp(""); }}
+                      onClick={() => {
+                        setOtpStep("request");
+                        setOtp("");
+                      }}
                       className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
                     >
-                      Изменить номер
+                      Изменить email
                     </button>
                   </div>
                 )}

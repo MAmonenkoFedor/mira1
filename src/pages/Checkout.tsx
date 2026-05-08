@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowLeft, CreditCard, Truck, CheckCircle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -11,11 +11,12 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest, getErrorMessage } from "@/integrations/api/client";
 import { toast } from "sonner";
+import { useClientMessages } from "@/hooks/useClientMessages";
 
 const Checkout = () => {
   const { items, totalPrice, clearCart } = useCart();
-  const { user, requestOtp } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: clientMessages } = useClientMessages();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
@@ -28,6 +29,9 @@ const Checkout = () => {
 
   const deliveryPrice = deliveryMethod === "pickup" ? 0 : (totalPrice >= 3000 ? 0 : 300);
   const finalTotal = totalPrice + deliveryPrice;
+  const checkoutNotice =
+    clientMessages?.checkoutNotice ||
+    "Подтверждение заказа отправляем на email. SMS-уведомления подключим позже.";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +41,7 @@ const Checkout = () => {
     const formData = new FormData(form);
     const name = formData.get("name") as string;
     const phone = formData.get("phone") as string;
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const city = formData.get("city") as string || "";
     const address = formData.get("address") as string || "";
     const fullAddress = deliveryMethod === "courier" ? `${city}, ${address}` : "Самовывоз";
@@ -44,34 +49,38 @@ const Checkout = () => {
     const generatedOrderNumber = `МВ-${Date.now().toString().slice(-6)}`;
 
     try {
-      // If user is logged in, save order to DB
+      const orderPayload = {
+        order_number: generatedOrderNumber,
+        status: "Новый",
+        delivery_price: deliveryPrice,
+        delivery_method: deliveryMethod,
+        payment_method: paymentMethod,
+        address: fullAddress,
+        items: items.map(({ product, quantity }) => ({
+          product_id: product.id,
+          quantity,
+        })),
+        profile_name: name,
+      };
+
       if (user) {
         await apiRequest("/api/orders", {
           method: "POST",
-          body: JSON.stringify({
-            order_number: generatedOrderNumber,
-            status: "Новый",
-            total_price: finalTotal,
-            delivery_price: deliveryPrice,
-            delivery_method: deliveryMethod,
-            payment_method: paymentMethod,
-            address: fullAddress,
-            items: items.map(({ product, quantity }) => ({
-              product_id: product.id,
-              product_name: product.name,
-              product_image: product.image,
-              price: product.price,
-              quantity,
-            })),
-            profile_name: name,
-          }),
+          body: JSON.stringify(orderPayload),
         });
       } else {
-        if (phone) {
-          const formattedPhone = phone.startsWith("+") ? phone : `+${phone}`;
-          await requestOtp(formattedPhone);
+        if (!email) {
+          toast.error("Укажите email для оформления заказа");
+          setIsSubmitting(false);
+          return;
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await apiRequest("/api/orders/guest", {
+          method: "POST",
+          body: JSON.stringify({
+            ...orderPayload,
+            customer_email: email,
+          }),
+        });
       }
     } catch (error: unknown) {
       console.error("Order error:", error);
@@ -164,6 +173,9 @@ const Checkout = () => {
                   <h2 className="font-heading font-semibold text-lg mb-4">
                     Контактные данные
                   </h2>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    {checkoutNotice}
+                  </p>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Имя *</Label>
@@ -174,8 +186,8 @@ const Checkout = () => {
                       <Input id="phone" name="phone" type="tel" placeholder="+7 (___) ___-__-__" required />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" name="email" type="email" placeholder="email@example.com" />
+                      <Label htmlFor="email">Email *</Label>
+                      <Input id="email" name="email" type="email" placeholder="email@example.com" required />
                     </div>
                   </div>
                 </div>

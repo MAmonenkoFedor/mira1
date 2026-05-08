@@ -69,6 +69,42 @@ type LayoutPreset = {
   description: string;
 };
 
+type PresetApplyOptions = {
+  sections: boolean;
+  featuredCategoryIds: boolean;
+  seo: boolean;
+  hero: boolean;
+  trust: boolean;
+};
+
+type PresetPreview = {
+  current: HomeLayout;
+  next: HomeLayout;
+  changed: PresetApplyOptions;
+  changedCount: number;
+  details: {
+    sections: {
+      orderChanged: boolean;
+      changedKeys: string[];
+    };
+    featuredCategoryIds: {
+      added: string[];
+      removed: string[];
+    };
+    seo: {
+      changedKeys: string[];
+    };
+    hero: {
+      changedKeys: string[];
+    };
+    trust: {
+      changedIndices: number[];
+      beforeCount: number;
+      afterCount: number;
+    };
+  };
+};
+
 const SECTION_LABELS: Record<string, string> = {
   hero: "Hero баннер",
   trust: "Блок доверия",
@@ -88,6 +124,8 @@ const BADGE_KEYS = new Set(["premium"]);
 const PRODUCT_KEYS = new Set(["gift_sets", "premium", "truffles", "discounts", "popular"]);
 const LIMIT_KEYS = new Set(["gift_sets", "premium", "truffles", "discounts", "popular"]);
 
+const humanizeSectionKey = (key: string) => SECTION_LABELS[key] || key;
+
 const HomeLayoutAdmin = () => {
   const [sections, setSections] = useState<HomeSection[]>([]);
   const [featuredCategoryIds, setFeaturedCategoryIds] = useState<string[]>([]);
@@ -98,6 +136,15 @@ const HomeLayoutAdmin = () => {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [presets, setPresets] = useState<LayoutPreset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState("default");
+  const [presetApplyOptions, setPresetApplyOptions] = useState<PresetApplyOptions>({
+    sections: true,
+    featuredCategoryIds: true,
+    seo: true,
+    hero: true,
+    trust: true,
+  });
+  const [presetPreview, setPresetPreview] = useState<PresetPreview | null>(null);
+  const [previewingPreset, setPreviewingPreset] = useState(false);
   const [applyingPreset, setApplyingPreset] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,14 +233,41 @@ const HomeLayoutAdmin = () => {
     try {
       await apiRequest("/api/admin/home-layout/apply-preset", {
         method: "POST",
-        body: JSON.stringify({ preset: selectedPreset }),
+        body: JSON.stringify({
+          preset: selectedPreset,
+          apply: presetApplyOptions,
+        }),
       });
       await fetchLayout();
+      setPresetPreview(null);
       toast.success("Пресет витрины применён");
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Ошибка применения пресета"));
     } finally {
       setApplyingPreset(false);
+    }
+  };
+
+  const previewPreset = async () => {
+    setPreviewingPreset(true);
+    try {
+      const preview = await apiRequest<PresetPreview>("/api/admin/home-layout/preview-preset", {
+        method: "POST",
+        body: JSON.stringify({
+          preset: selectedPreset,
+          apply: presetApplyOptions,
+        }),
+      });
+      setPresetPreview(preview);
+      if ((preview?.changedCount || 0) === 0) {
+        toast.info("Изменений не будет");
+      } else {
+        toast.success(`Найдено изменений: ${preview.changedCount}`);
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Ошибка предпросмотра пресета"));
+    } finally {
+      setPreviewingPreset(false);
     }
   };
 
@@ -234,11 +308,124 @@ const HomeLayoutAdmin = () => {
                   {presets.find((preset) => preset.key === selectedPreset)?.description}
                 </p>
               )}
+              <div className="grid sm:grid-cols-2 gap-2 pt-1">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={presetApplyOptions.sections}
+                    onCheckedChange={(checked) =>
+                      setPresetApplyOptions((prev) => ({ ...prev, sections: Boolean(checked) }))
+                    }
+                  />
+                  <span>Порядок и блоки</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={presetApplyOptions.hero}
+                    onCheckedChange={(checked) =>
+                      setPresetApplyOptions((prev) => ({ ...prev, hero: Boolean(checked) }))
+                    }
+                  />
+                  <span>Hero контент</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={presetApplyOptions.trust}
+                    onCheckedChange={(checked) =>
+                      setPresetApplyOptions((prev) => ({ ...prev, trust: Boolean(checked) }))
+                    }
+                  />
+                  <span>Блок доверия</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={presetApplyOptions.featuredCategoryIds}
+                    onCheckedChange={(checked) =>
+                      setPresetApplyOptions((prev) => ({ ...prev, featuredCategoryIds: Boolean(checked) }))
+                    }
+                  />
+                  <span>Категории</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer sm:col-span-2">
+                  <Checkbox
+                    checked={presetApplyOptions.seo}
+                    onCheckedChange={(checked) =>
+                      setPresetApplyOptions((prev) => ({ ...prev, seo: Boolean(checked) }))
+                    }
+                  />
+                  <span>SEO главной</span>
+                </label>
+              </div>
             </div>
-            <Button onClick={applyPreset} disabled={loading || applyingPreset}>
-              {applyingPreset ? "Применяю..." : "Применить пресет"}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={previewPreset} disabled={loading || previewingPreset}>
+                {previewingPreset ? "Считаю..." : "Предпросмотр"}
+              </Button>
+              <Button onClick={applyPreset} disabled={loading || applyingPreset}>
+                {applyingPreset ? "Применяю..." : "Применить пресет"}
+              </Button>
+            </div>
           </div>
+          {presetPreview && (
+            <div className="pt-3 border-t border-border mt-3 text-sm space-y-1">
+              <p className="font-medium">Предпросмотр изменений: {presetPreview.changedCount}</p>
+              <p className="text-muted-foreground">
+                Блоки и порядок: {presetPreview.changed.sections ? "да" : "нет"} | Hero:{" "}
+                {presetPreview.changed.hero ? "да" : "нет"} | Trust: {presetPreview.changed.trust ? "да" : "нет"}
+              </p>
+              <p className="text-muted-foreground">
+                Категории: {presetPreview.changed.featuredCategoryIds ? "да" : "нет"} | SEO:{" "}
+                {presetPreview.changed.seo ? "да" : "нет"}
+              </p>
+              {presetPreview.changed.sections && (
+                <p className="text-muted-foreground">
+                  Секции:{" "}
+                  {presetPreview.details.sections.changedKeys.length > 0
+                    ? presetPreview.details.sections.changedKeys.map(humanizeSectionKey).join(", ")
+                    : "без точечных изменений"}
+                  {presetPreview.details.sections.orderChanged ? " (изменится порядок)" : ""}
+                </p>
+              )}
+              {presetPreview.changed.hero && presetPreview.details.hero.changedKeys.length > 0 && (
+                <p className="text-muted-foreground">
+                  Hero поля: {presetPreview.details.hero.changedKeys.join(", ")}
+                </p>
+              )}
+              {presetPreview.changed.seo && presetPreview.details.seo.changedKeys.length > 0 && (
+                <p className="text-muted-foreground">
+                  SEO поля: {presetPreview.details.seo.changedKeys.join(", ")}
+                </p>
+              )}
+              {presetPreview.changed.featuredCategoryIds && (
+                <p className="text-muted-foreground">
+                  Категории +{presetPreview.details.featuredCategoryIds.added.length} / -
+                  {presetPreview.details.featuredCategoryIds.removed.length}
+                </p>
+              )}
+              {presetPreview.changed.trust && (
+                <p className="text-muted-foreground">
+                  Trust: карточки {presetPreview.details.trust.beforeCount} → {presetPreview.details.trust.afterCount},
+                  изменено позиций: {presetPreview.details.trust.changedIndices.length}
+                </p>
+              )}
+              <details className="mt-2 rounded-md border border-border bg-muted/30 p-2">
+                <summary className="cursor-pointer font-medium">Показать diff JSON (до/после)</summary>
+                <div className="grid gap-2 mt-2 lg:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Текущее</p>
+                    <pre className="text-xs whitespace-pre-wrap break-words max-h-64 overflow-auto rounded bg-background p-2">
+                      {JSON.stringify(presetPreview.current, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">После применения</p>
+                    <pre className="text-xs whitespace-pre-wrap break-words max-h-64 overflow-auto rounded bg-background p-2">
+                      {JSON.stringify(presetPreview.next, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </details>
+            </div>
+          )}
         </Card>
 
         {loading ? (

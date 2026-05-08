@@ -14,6 +14,8 @@ interface AuthContextType {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<{ requestId: string }>;
   verifyOtp: (phone: string, code: string, requestId: string) => Promise<void>;
+  requestEmailOtp: (email: string) => Promise<{ requestId: string }>;
+  verifyEmailOtp: (email: string, code: string, requestId: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -24,6 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   signInWithPassword: async () => {},
   requestOtp: async () => ({ requestId: "" }),
   verifyOtp: async () => {},
+  requestEmailOtp: async () => ({ requestId: "" }),
+  verifyEmailOtp: async () => {},
   signOut: async () => {},
 });
 
@@ -71,6 +75,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyAuth(data);
   };
 
+  const requestEmailOtp = async (email: string) => {
+    const data = await apiRequest<{ requestId: string }>("/api/auth/email-otp/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+    return data;
+  };
+
+  const verifyEmailOtp = async (email: string, code: string, requestId: string) => {
+    const data = await apiRequest<{ token: string; user: AuthUser; roles: string[] }>(
+      "/api/auth/email-otp/verify",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, code, requestId }),
+      }
+    );
+    applyAuth(data);
+  };
+
   const requestOtp = async (phone: string) => {
     const data = await apiRequest<{ requestId: string }>("/api/auth/otp/request", {
       method: "POST",
@@ -103,7 +126,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, roles, loading, signInWithPassword, requestOtp, verifyOtp, signOut }}
+      value={{
+        user,
+        roles,
+        loading,
+        signInWithPassword,
+        requestOtp,
+        verifyOtp,
+        requestEmailOtp,
+        verifyEmailOtp,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>
