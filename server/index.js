@@ -1158,14 +1158,24 @@ const ensureSchema = async () => {
     )
   `);
   await query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_id_uuid UUID`);
-  await query(
+  const { rows: orderItemsLegacyColumn } = await query(
     `
-      UPDATE order_items
-      SET product_id_uuid = NULLIF(product_id, '')::uuid
-      WHERE product_id_uuid IS NULL
-        AND product_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'order_items' AND column_name = 'product_id'
+      LIMIT 1
     `,
   );
+  if (orderItemsLegacyColumn.length > 0) {
+    await query(
+      `
+        UPDATE order_items
+        SET product_id_uuid = NULLIF(product_id, '')::uuid
+        WHERE product_id_uuid IS NULL
+          AND product_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      `,
+    );
+  }
   await query(`CREATE INDEX IF NOT EXISTS order_items_order_id_idx ON order_items(order_id)`);
   await query(`CREATE INDEX IF NOT EXISTS order_items_product_id_uuid_idx ON order_items(product_id_uuid)`);
   await query(`
