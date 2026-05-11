@@ -28,8 +28,13 @@ type IntegrationSettings = {
   };
   mail: {
     provider: "none" | "smtp";
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    smtpUser: string;
     fromEmail: string;
     smtpPassword: string;
+    notifyToEmail: string;
     postalCode: string;
   };
 };
@@ -45,13 +50,24 @@ const emptyState: IntegrationSettings = {
     ozonApiKey: "",
   },
   payment: { provider: "manual", ozonPaymentKey: "" },
-  mail: { provider: "none", fromEmail: "", smtpPassword: "", postalCode: "" },
+  mail: {
+    provider: "none",
+    smtpHost: "",
+    smtpPort: 465,
+    smtpSecure: true,
+    smtpUser: "",
+    fromEmail: "",
+    smtpPassword: "",
+    notifyToEmail: "",
+    postalCode: "",
+  },
 };
 
 const IntegrationsAdmin = () => {
   const [value, setValue] = useState<IntegrationSettings>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testEmailTo, setTestEmailTo] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -80,6 +96,21 @@ const IntegrationsAdmin = () => {
       await load();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Не удалось сохранить ключи"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendTestEmail = async () => {
+    setSaving(true);
+    try {
+      await apiRequest("/api/admin/integrations/test-email", {
+        method: "POST",
+        body: JSON.stringify({ to: testEmailTo.trim() || undefined }),
+      });
+      toast.success("Тестовое письмо отправлено");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Не удалось отправить тестовое письмо"));
     } finally {
       setSaving(false);
     }
@@ -279,6 +310,68 @@ const IntegrationsAdmin = () => {
               </select>
             </div>
             <div className="space-y-2">
+              <Label>Куда слать уведомления о заказах</Label>
+              <Input
+                value={value.mail.notifyToEmail}
+                onChange={(e) =>
+                  setValue((prev) => ({ ...prev, mail: { ...prev.mail, notifyToEmail: e.target.value } }))
+                }
+                placeholder="orders@domain.ru"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Host</Label>
+              <Input
+                value={value.mail.smtpHost}
+                onChange={(e) => setValue((prev) => ({ ...prev, mail: { ...prev.mail, smtpHost: e.target.value } }))}
+                placeholder="smtp.yandex.ru"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Port</Label>
+              <Input
+                inputMode="numeric"
+                value={String(value.mail.smtpPort || "")}
+                onChange={(e) => {
+                  const nextPort = Number.parseInt(e.target.value, 10);
+                  setValue((prev) => ({
+                    ...prev,
+                    mail: { ...prev.mail, smtpPort: Number.isFinite(nextPort) ? nextPort : 465 },
+                  }));
+                }}
+                placeholder="465"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Secure</Label>
+              <select
+                value={value.mail.smtpSecure ? "true" : "false"}
+                onChange={(e) =>
+                  setValue((prev) => ({
+                    ...prev,
+                    mail: { ...prev.mail, smtpSecure: e.target.value === "true" },
+                  }))
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                disabled={loading}
+              >
+                <option value="true">Да (SSL/TLS)</option>
+                <option value="false">Нет</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP User</Label>
+              <Input
+                value={value.mail.smtpUser}
+                onChange={(e) => setValue((prev) => ({ ...prev, mail: { ...prev.mail, smtpUser: e.target.value } }))}
+                placeholder="miravcus@ya.ru"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Почта отправителя</Label>
               <Input
                 value={value.mail.fromEmail}
@@ -295,6 +388,20 @@ const IntegrationsAdmin = () => {
                 onChange={(e) => setValue((prev) => ({ ...prev, mail: { ...prev.mail, smtpPassword: e.target.value } }))}
                 disabled={loading}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Тестовое письмо (кому)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={testEmailTo}
+                  onChange={(e) => setTestEmailTo(e.target.value)}
+                  placeholder="email@example.com"
+                  disabled={loading}
+                />
+                <Button type="button" variant="outline" onClick={sendTestEmail} disabled={saving || loading}>
+                  Отправить
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Почтовый индекс</Label>

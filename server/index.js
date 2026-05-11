@@ -4,6 +4,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
+import nodemailer from "nodemailer";
 import { Pool } from "pg";
 import {
   randomInt,
@@ -555,8 +556,13 @@ const integrationProviderSchema = z.object({
   mail: z
     .object({
       provider: z.enum(["none", "smtp"]).optional(),
+      smtpHost: z.string().max(200).optional().nullable(),
+      smtpPort: z.coerce.number().int().min(1).max(65535).optional().nullable(),
+      smtpSecure: z.boolean().optional().nullable(),
+      smtpUser: z.string().max(200).optional().nullable(),
       fromEmail: z.string().max(200).optional().nullable(),
       smtpPassword: z.string().max(300).optional().nullable(),
+      notifyToEmail: z.string().max(200).optional().nullable(),
       postalCode: z.string().max(30).optional().nullable(),
     })
     .optional(),
@@ -587,8 +593,16 @@ const buildDefaultIntegrationSettings = () => ({
   },
   mail: {
     provider: process.env.MAIL_PROVIDER === "smtp" ? "smtp" : "none",
+    smtpHost: process.env.MAIL_SMTP_HOST ?? "",
+    smtpPort: (() => {
+      const port = Number.parseInt(process.env.MAIL_SMTP_PORT ?? "465", 10);
+      return Number.isFinite(port) ? port : 465;
+    })(),
+    smtpSecure: process.env.MAIL_SMTP_SECURE ? process.env.MAIL_SMTP_SECURE === "true" : true,
+    smtpUser: process.env.MAIL_SMTP_USER ?? "",
     fromEmail: process.env.MAIL_FROM_EMAIL ?? "",
     smtpPassword: process.env.MAIL_SMTP_PASSWORD ?? "",
+    notifyToEmail: process.env.MAIL_NOTIFY_TO_EMAIL ?? "",
     postalCode: process.env.MAIL_POSTAL_CODE ?? "",
   },
 });
@@ -623,12 +637,128 @@ const normalizeIntegrationSettings = (rawValue) => {
     },
     mail: {
       provider: value.mail?.provider ?? defaults.mail.provider,
+      smtpHost: cleanString(value.mail?.smtpHost) || defaults.mail.smtpHost,
+      smtpPort: Number.isFinite(value.mail?.smtpPort) ? value.mail.smtpPort : defaults.mail.smtpPort,
+      smtpSecure: typeof value.mail?.smtpSecure === "boolean" ? value.mail.smtpSecure : defaults.mail.smtpSecure,
+      smtpUser: cleanString(value.mail?.smtpUser) || defaults.mail.smtpUser,
       fromEmail: cleanString(value.mail?.fromEmail) || defaults.mail.fromEmail,
       smtpPassword: cleanString(value.mail?.smtpPassword) || defaults.mail.smtpPassword,
+      notifyToEmail: cleanString(value.mail?.notifyToEmail) || defaults.mail.notifyToEmail,
       postalCode: cleanString(value.mail?.postalCode) || defaults.mail.postalCode,
     },
   };
 };
+
+const canSendMail = (settings) => {
+  if (settings.mail.provider !== "smtp") return false;
+  if (!settings.mail.smtpHost) return false;
+  if (!settings.mail.smtpPort) return false;
+  if (!settings.mail.smtpUser) return false;
+  if (!settings.mail.smtpPassword) return false;
+  if (!settings.mail.fromEmail) return false;
+  return true;
+};
+
+const sendMailWithSmtp = async (settings, { to, subject, text, html }) => {
+  if (!canSendMail(settings)) {
+    throw new Error("mail_not_configured");
+  }
+  const transporter = nodemailer.createTransport({
+    host: settings.mail.smtpHost,
+    port: settings.mail.smtpPort,
+    secure: Boolean(settings.mail.smtpSecure),
+    auth: {
+      user: settings.mail.smtpUser,
+      pass: settings.mail.smtpPassword,
+    },
+  });
+  const from = settings.mail.fromEmail;
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text,
+    ...(html ? { html } : {}),
+  });
+};
+
+const formatRub = (value) => {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+};
+
+const buildOrderEmailText = ({ orderNumber, totalPrice, deliveryPrice, deliveryMethod, paymentMethod, address, items }) => {
+  const lines = [];
+  lines.push(`Заказ №${orderNumber}`);
+  lines.push("");
+  lines.push("Состав заказа:");
+  for (const item of items) {
+    const name = item.product_name || item.productName || "Товар";
+    const qty = item.quantity ?? 1;
+    const price = typeof item.price === "number" ? item.price : 0;
+    lines.push(`- ${name} — ${qty} шт × ${formatRub(price)}`);
+  }
+  lines.push("");
+  lines.push(`Доставка: ${deliveryMethod || "-"}`);
+  lines.push(`Адрес: ${address || "-"}`);
+  lines.push(`Оплата: ${paymentMethod || "-"}`);
+  lines.push(`Доставка (стоимость): ${formatRub(deliveryPrice)}`);
+  lines.push(`Итого: ${formatRub(totalPrice)}`);
+  return lines.join("\n");
+};
+
+const maybeSendOrderEmails = async ({ customerEmail, orderNumber, totalPrice, deliveryPrice, deliveryMethod, paymentMethod, address, items }) => {
+  try {
+    const integrations = await getIntegrationSettings();
+    if (!canSendMail(integrations)) {
+      return;
+    }
+    const adminEmail = integrations.mail.notifyToEmail || integrations.mail.fromEmail;
+    const subject = `Новый заказ №${orderNumber}`;
+    const text = buildOrderEmailText({ orderNumber, totalPrice, deliveryPrice, deliveryMethod, paymentMethod, address, items });
+
+    if (adminEmail) {
+      await sendMailWithSmtp(integrations, { to: adminEmail, subject, text });
+    }
+    if (customerEmail) {
+      await sendMailWithSmtp(integrations, {
+        to: customerEmail,
+        subject: `Подтверждение заказа №${orderNumber}`,
+        text,
+      });
+    }
+  } catch {
+    return;
+  }
+};
+
+const maskIntegrationSettingsForAdmin = (settings) => ({
+  ...settings,
+  sms: {
+    ...settings.sms,
+    smscPassword: "",
+    hasSmscPassword: Boolean(settings.sms.smscPassword),
+  },
+  delivery: {
+    ...settings.delivery,
+    cdekClientSecret: "",
+    yandexApiKey: "",
+    ozonApiKey: "",
+    hasCdekClientSecret: Boolean(settings.delivery.cdekClientSecret),
+    hasYandexApiKey: Boolean(settings.delivery.yandexApiKey),
+    hasOzonApiKey: Boolean(settings.delivery.ozonApiKey),
+  },
+  payment: {
+    ...settings.payment,
+    ozonPaymentKey: "",
+    hasOzonPaymentKey: Boolean(settings.payment.ozonPaymentKey),
+  },
+  mail: {
+    ...settings.mail,
+    smtpPassword: "",
+    hasSmtpPassword: Boolean(settings.mail.smtpPassword),
+  },
+});
 
 const getIntegrationSettings = async () => {
   const { rows } = await query(`SELECT value FROM site_settings WHERE key = 'integration_settings' LIMIT 1`);
@@ -1819,6 +1949,18 @@ app.post(
       `,
       [normalizedEmail, otpHash, expiresAt],
     );
+    try {
+      const integrations = await getIntegrationSettings();
+      await sendMailWithSmtp(integrations, {
+        to: normalizedEmail,
+        subject: "Код для входа",
+        text: `Код подтверждения: ${otp}\n\nЕсли вы не запрашивали код — просто игнорируйте это письмо.`,
+      });
+    } catch (error) {
+      await query(`DELETE FROM email_otp_requests WHERE id = $1`, [rows[0].id]);
+      res.status(502).json({ error: "email_send_failed", details: isProd ? undefined : String(error?.message ?? error) });
+      return;
+    }
     res.json({ requestId: rows[0].id });
   }),
 );
@@ -2517,6 +2659,24 @@ app.post(
     if (parsed.data.profile_name) {
       await ensureProfile(req.user.id, req.user.phone ?? null, parsed.data.profile_name);
     }
+    const emailItems = parsed.data.items.map((item) => {
+      const productRow = productsById[item.product_id];
+      return {
+        product_name: productRow?.name ?? "Товар",
+        quantity: item.quantity,
+        price: toNumber(productRow?.price) ?? 0,
+      };
+    });
+    await maybeSendOrderEmails({
+      customerEmail: req.user.email ?? null,
+      orderNumber: parsed.data.order_number,
+      totalPrice,
+      deliveryPrice,
+      deliveryMethod: parsed.data.delivery_method ?? null,
+      paymentMethod: parsed.data.payment_method ?? null,
+      address: parsed.data.address ?? null,
+      items: emailItems,
+    });
     res.json(mapOrder(order));
   }),
 );
@@ -2610,6 +2770,25 @@ app.post(
     if (parsed.data.profile_name) {
       await ensureProfile(userId, existingUser.rows[0]?.phone ?? null, parsed.data.profile_name);
     }
+
+    const emailItems = parsed.data.items.map((item) => {
+      const productRow = productsById[item.product_id];
+      return {
+        product_name: productRow?.name ?? "Товар",
+        quantity: item.quantity,
+        price: toNumber(productRow?.price) ?? 0,
+      };
+    });
+    await maybeSendOrderEmails({
+      customerEmail: normalizedEmail,
+      orderNumber: parsed.data.order_number,
+      totalPrice,
+      deliveryPrice,
+      deliveryMethod: parsed.data.delivery_method ?? null,
+      paymentMethod: parsed.data.payment_method ?? null,
+      address: parsed.data.address ?? null,
+      items: emailItems,
+    });
 
     res.json(mapOrder(order));
   }),
@@ -3072,7 +3251,7 @@ app.get(
   requireRole("admin"),
   asyncHandler(async (_req, res) => {
     const settings = await getIntegrationSettings();
-    res.json(settings);
+    res.json(maskIntegrationSettingsForAdmin(settings));
   }),
 );
 
@@ -3087,13 +3266,35 @@ app.put(
       return;
     }
     const current = await getIntegrationSettings();
-    const next = normalizeIntegrationSettings({
+    const update = parsed.data;
+    const merged = {
       ...current,
-      ...parsed.data,
-      sms: { ...current.sms, ...(parsed.data.sms ?? {}) },
-      delivery: { ...current.delivery, ...(parsed.data.delivery ?? {}) },
-      payment: { ...current.payment, ...(parsed.data.payment ?? {}) },
-      mail: { ...current.mail, ...(parsed.data.mail ?? {}) },
+      ...update,
+      sms: { ...current.sms, ...(update.sms ?? {}) },
+      delivery: { ...current.delivery, ...(update.delivery ?? {}) },
+      payment: { ...current.payment, ...(update.payment ?? {}) },
+      mail: { ...current.mail, ...(update.mail ?? {}) },
+    };
+    if (typeof update.sms?.smscPassword === "string" && update.sms.smscPassword.trim().length === 0) {
+      merged.sms.smscPassword = current.sms.smscPassword;
+    }
+    if (typeof update.delivery?.cdekClientSecret === "string" && update.delivery.cdekClientSecret.trim().length === 0) {
+      merged.delivery.cdekClientSecret = current.delivery.cdekClientSecret;
+    }
+    if (typeof update.delivery?.yandexApiKey === "string" && update.delivery.yandexApiKey.trim().length === 0) {
+      merged.delivery.yandexApiKey = current.delivery.yandexApiKey;
+    }
+    if (typeof update.delivery?.ozonApiKey === "string" && update.delivery.ozonApiKey.trim().length === 0) {
+      merged.delivery.ozonApiKey = current.delivery.ozonApiKey;
+    }
+    if (typeof update.payment?.ozonPaymentKey === "string" && update.payment.ozonPaymentKey.trim().length === 0) {
+      merged.payment.ozonPaymentKey = current.payment.ozonPaymentKey;
+    }
+    if (typeof update.mail?.smtpPassword === "string" && update.mail.smtpPassword.trim().length === 0) {
+      merged.mail.smtpPassword = current.mail.smtpPassword;
+    }
+    const next = normalizeIntegrationSettings({
+      ...merged,
     });
     await query(
       `
@@ -3104,6 +3305,40 @@ app.put(
       `,
       [JSON.stringify(next)],
     );
+    res.status(204).end();
+  }),
+);
+
+const adminTestEmailSchema = z.object({
+  to: z.string().email().optional(),
+});
+
+app.post(
+  "/api/admin/integrations/test-email",
+  requireAuth,
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const parsed = adminTestEmailSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_payload", details: parsed.error.flatten() });
+      return;
+    }
+    const integrations = await getIntegrationSettings();
+    const to = parsed.data.to ?? integrations.mail.notifyToEmail ?? integrations.mail.fromEmail;
+    if (!to) {
+      res.status(400).json({ error: "email_missing" });
+      return;
+    }
+    try {
+      await sendMailWithSmtp(integrations, {
+        to,
+        subject: "Тестовое письмо",
+        text: "Письмо отправлено успешно.",
+      });
+    } catch (error) {
+      res.status(502).json({ error: "email_send_failed", details: isProd ? undefined : String(error?.message ?? error) });
+      return;
+    }
     res.status(204).end();
   }),
 );
