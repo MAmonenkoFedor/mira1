@@ -575,6 +575,21 @@ const hexColorSchema = z
   .refine((value) => /^#?[0-9a-fA-F]{6}$/.test(value), { message: "invalid_hex" })
   .transform((value) => (value.startsWith("#") ? value.toUpperCase() : `#${value.toUpperCase()}`));
 
+const legacyThemePaletteSchema = z.object({
+  background: hexColorSchema,
+  card: hexColorSchema,
+  foreground: hexColorSchema,
+  primary: hexColorSchema,
+  accent: hexColorSchema,
+  secondary: hexColorSchema,
+  muted: hexColorSchema,
+  mutedForeground: hexColorSchema,
+  border: hexColorSchema,
+  saleRed: hexColorSchema,
+  heroStart: hexColorSchema,
+  heroEnd: hexColorSchema,
+});
+
 const themePaletteSchema = z.object({
   background: hexColorSchema,
   card: hexColorSchema,
@@ -596,7 +611,7 @@ const themePaletteSchema = z.object({
 const themeSettingsSchema = z.object({
   enabled: z.boolean().optional(),
   preset: z.string().max(50).optional().nullable(),
-  palette: themePaletteSchema.optional(),
+  palette: z.union([themePaletteSchema, legacyThemePaletteSchema]).optional(),
   assets: z
     .object({
       backgroundMode: z.enum(["color", "image"]).optional().nullable(),
