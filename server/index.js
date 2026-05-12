@@ -586,8 +586,11 @@ const themePaletteSchema = z.object({
   mutedForeground: hexColorSchema,
   border: hexColorSchema,
   saleRed: hexColorSchema,
-  heroStart: hexColorSchema,
-  heroEnd: hexColorSchema,
+  heroBackground: hexColorSchema,
+  heroGradientStart: hexColorSchema,
+  heroGradientEnd: hexColorSchema,
+  heroText: hexColorSchema,
+  heroDecor: hexColorSchema,
 });
 
 const themeSettingsSchema = z.object({
@@ -610,8 +613,11 @@ const buildDefaultThemeSettings = () => ({
     mutedForeground: "#6B7280",
     border: "#E5E7EB",
     saleRed: "#D92D20",
-    heroStart: "#123A63",
-    heroEnd: "#0B2A48",
+    heroBackground: "#F7F9FC",
+    heroGradientStart: "#FFFFFF",
+    heroGradientEnd: "#EEF2F7",
+    heroText: "#172033",
+    heroDecor: "#D9A441",
   },
 });
 
@@ -620,10 +626,35 @@ const normalizeThemeSettings = (rawValue) => {
   const parsed = themeSettingsSchema.safeParse(rawValue);
   if (!parsed.success) return defaults;
   const value = parsed.data;
+  const palette = value.palette ?? defaults.palette;
+  if ("heroStart" in palette || "heroEnd" in palette) {
+    const legacy = palette;
+    return {
+      enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
+      preset: typeof value.preset === "string" && value.preset.trim().length ? value.preset.trim() : defaults.preset,
+      palette: {
+        background: legacy.background ?? defaults.palette.background,
+        card: legacy.card ?? defaults.palette.card,
+        foreground: legacy.foreground ?? defaults.palette.foreground,
+        primary: legacy.primary ?? defaults.palette.primary,
+        accent: legacy.accent ?? defaults.palette.accent,
+        secondary: legacy.secondary ?? defaults.palette.secondary,
+        muted: legacy.muted ?? defaults.palette.muted,
+        mutedForeground: legacy.mutedForeground ?? defaults.palette.mutedForeground,
+        border: legacy.border ?? defaults.palette.border,
+        saleRed: legacy.saleRed ?? defaults.palette.saleRed,
+        heroBackground: defaults.palette.heroBackground,
+        heroGradientStart: legacy.heroStart ?? defaults.palette.heroGradientStart,
+        heroGradientEnd: legacy.heroEnd ?? defaults.palette.heroGradientEnd,
+        heroText: defaults.palette.heroText,
+        heroDecor: defaults.palette.heroDecor,
+      },
+    };
+  }
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
     preset: typeof value.preset === "string" && value.preset.trim().length ? value.preset.trim() : defaults.preset,
-    palette: value.palette ?? defaults.palette,
+    palette,
   };
 };
 

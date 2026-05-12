@@ -9,8 +9,11 @@ type ThemePalette = {
   mutedForeground: string;
   border: string;
   saleRed: string;
-  heroStart: string;
-  heroEnd: string;
+  heroBackground: string;
+  heroGradientStart: string;
+  heroGradientEnd: string;
+  heroText: string;
+  heroDecor: string;
 };
 
 type ThemeSettings = {
@@ -103,8 +106,11 @@ export const buildCssVarsFromPalette = (palette: ThemePalette) => {
   const mutedForeground = normalizeHex(palette.mutedForeground);
   const border = normalizeHex(palette.border);
   const saleRed = normalizeHex(palette.saleRed);
-  const heroStart = normalizeHex(palette.heroStart);
-  const heroEnd = normalizeHex(palette.heroEnd);
+  const heroBackground = normalizeHex(palette.heroBackground);
+  const heroGradientStart = normalizeHex(palette.heroGradientStart);
+  const heroGradientEnd = normalizeHex(palette.heroGradientEnd);
+  const heroText = normalizeHex(palette.heroText);
+  const heroDecor = normalizeHex(palette.heroDecor);
 
   const primaryForeground = pickForeground(primary);
   const accentForeground = pickForeground(accent);
@@ -144,9 +150,14 @@ export const buildCssVarsFromPalette = (palette: ThemePalette) => {
     "--sale-red": hexToHslTriplet(saleRed),
     "--sale-red-dark": hexToHslTriplet(saleRedDark),
     "--trust-green": hexToHslTriplet(trustGreen),
+    "--hero-background": hexToHslTriplet(heroBackground),
+    "--hero-gradient-start": hexToHslTriplet(heroGradientStart),
+    "--hero-gradient-end": hexToHslTriplet(heroGradientEnd),
+    "--hero-text": hexToHslTriplet(heroText),
+    "--hero-decor": hexToHslTriplet(heroDecor),
     "--gradient-gold": `linear-gradient(135deg, hsl(${hexToHslTriplet(gold)}), hsl(${hexToHslTriplet(goldLight)}))`,
-    "--gradient-blue": `linear-gradient(135deg, hsl(${hexToHslTriplet(heroStart)}), hsl(${hexToHslTriplet(heroEnd)}))`,
-    "--gradient-premium": `linear-gradient(135deg, hsl(${hexToHslTriplet(heroStart)}), hsl(${hexToHslTriplet(heroEnd)}), hsl(${hexToHslTriplet(gold)}))`,
+    "--gradient-blue": `linear-gradient(135deg, hsl(${hexToHslTriplet(heroGradientStart)}), hsl(${hexToHslTriplet(heroGradientEnd)}))`,
+    "--gradient-premium": `linear-gradient(135deg, hsl(${hexToHslTriplet(heroGradientStart)}), hsl(${hexToHslTriplet(heroGradientEnd)}), hsl(${hexToHslTriplet(gold)}))`,
   };
 
   return cssVars;

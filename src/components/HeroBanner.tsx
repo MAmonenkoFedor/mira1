@@ -47,11 +47,11 @@ export function HeroBanner({ settings }: { settings?: HomeHeroSettings }) {
   const feature2 = settings?.feature2 || "Гарантия качества";
 
   return (
-    <section className="relative overflow-hidden bg-gradient-blue">
+    <section className="relative overflow-hidden bg-hero">
       <div className="container-custom py-12 sm:py-16 lg:py-24 relative z-10">
         <div className="grid lg:grid-cols-2 gap-8 items-center">
           {/* Content */}
-          <div className="text-white space-y-6 text-center lg:text-left">
+          <div className="text-hero space-y-6 text-center lg:text-left">
             <div className="inline-block">
               <span className="badge-premium text-sm px-4 py-1.5">
                 {topBadge}
@@ -69,7 +69,7 @@ export function HeroBanner({ settings }: { settings?: HomeHeroSettings }) {
               ) : null}
             </h1>
             
-            <p className="text-white/80 text-base sm:text-lg max-w-lg mx-auto lg:mx-0">
+            <p className="text-hero-muted text-base sm:text-lg max-w-lg mx-auto lg:mx-0">
               {heroDescription}
             </p>
             
@@ -81,13 +81,13 @@ export function HeroBanner({ settings }: { settings?: HomeHeroSettings }) {
                 </Button>
               </Link>
               <Link to={secondaryCtaLink}>
-                <Button variant="outline" className="border-white/30 text-white bg-transparent hover:bg-white/10 text-base px-8 py-6 w-full sm:w-auto">
+                <Button variant="outline" className="btn-hero-outline text-base px-8 py-6 w-full sm:w-auto">
                   {secondaryCtaText}
                 </Button>
               </Link>
             </div>
             
-            <div className="flex items-center justify-center lg:justify-start gap-6 pt-4 text-white/60 text-sm">
+            <div className="flex items-center justify-center lg:justify-start gap-6 pt-4 text-hero-subtle text-sm">
               <span className="flex items-center gap-2">
                 <span className="text-lg">✓</span> {feature1}
               </span>
@@ -100,8 +100,8 @@ export function HeroBanner({ settings }: { settings?: HomeHeroSettings }) {
           {/* Image placeholder */}
           <div className="hidden lg:flex justify-center">
             <div className="relative w-[360px] xl:w-[420px] aspect-[4/5]">
-              <div className="absolute inset-0 bg-gradient-to-br from-gold/20 to-transparent rounded-full animate-pulse" />
-              <div className="absolute inset-8 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 overflow-hidden">
+              <div className="absolute inset-0 rounded-full animate-pulse bg-hero-decor" />
+              <div className="absolute inset-8 backdrop-blur-sm rounded-3xl overflow-hidden border hero-card-shell">
                 <div className="relative w-full h-full">
                   <img src={imageSrc} alt={title} className="w-full h-full object-contain" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
@@ -136,7 +136,7 @@ export function HeroBanner({ settings }: { settings?: HomeHeroSettings }) {
       </div>
 
       {/* Decorative elements */}
-      <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-gold/5 to-transparent pointer-events-none" />
+      <div className="absolute top-0 right-0 w-1/2 h-full hero-decor-overlay pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-background to-transparent pointer-events-none" />
     </section>
   );

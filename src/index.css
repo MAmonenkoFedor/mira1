@@ -55,6 +55,13 @@
     --gradient-blue: linear-gradient(135deg, hsl(211 66% 17%), hsl(211 50% 30%));
     --gradient-premium: linear-gradient(135deg, hsl(211 66% 17%), hsl(211 66% 25%), hsl(43 74% 49%));
 
+    /* Hero */
+    --hero-background: 0 0% 100%;
+    --hero-gradient-start: 0 0% 100%;
+    --hero-gradient-end: 210 20% 96%;
+    --hero-text: 210 29% 17%;
+    --hero-decor: 43 74% 49%;
+
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -156,6 +163,46 @@
 
   .bg-gradient-blue {
     background: var(--gradient-blue);
+  }
+
+  .bg-hero {
+    background-color: hsl(var(--hero-background));
+    background-image: linear-gradient(135deg, hsl(var(--hero-gradient-start)), hsl(var(--hero-gradient-end)));
+  }
+
+  .text-hero {
+    color: hsl(var(--hero-text));
+  }
+
+  .text-hero-muted {
+    color: hsl(var(--hero-text) / 0.8);
+  }
+
+  .text-hero-subtle {
+    color: hsl(var(--hero-text) / 0.6);
+  }
+
+  .btn-hero-outline {
+    border-color: hsl(var(--hero-text) / 0.25);
+    color: hsl(var(--hero-text));
+    background: transparent;
+  }
+
+  .btn-hero-outline:hover {
+    background: hsl(var(--hero-text) / 0.06);
+  }
+
+  .bg-hero-decor {
+    background: radial-gradient(circle at 30% 30%, hsl(var(--hero-decor) / 0.24), transparent 70%);
+  }
+
+  .hero-decor-overlay {
+    background: linear-gradient(to left, hsl(var(--hero-decor) / 0.08), transparent);
+  }
+
+  .hero-card-shell {
+    background: hsl(var(--card) / 0.6);
+    border-color: hsl(var(--border) / 0.6);
   }
 
   .input-search {
