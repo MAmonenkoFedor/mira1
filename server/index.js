@@ -597,6 +597,15 @@ const themeSettingsSchema = z.object({
   enabled: z.boolean().optional(),
   preset: z.string().max(50).optional().nullable(),
   palette: themePaletteSchema.optional(),
+  assets: z
+    .object({
+      backgroundMode: z.enum(["color", "image"]).optional().nullable(),
+      siteBackgroundImage: z.string().max(500).optional().nullable(),
+      siteBackgroundOverlay: hexColorSchema.optional().nullable(),
+      siteBackgroundOverlayOpacity: z.coerce.number().min(0).max(1).optional().nullable(),
+    })
+    .optional()
+    .nullable(),
 });
 
 const buildDefaultThemeSettings = () => ({
@@ -619,6 +628,12 @@ const buildDefaultThemeSettings = () => ({
     heroText: "#172033",
     heroDecor: "#D9A441",
   },
+  assets: {
+    backgroundMode: "color",
+    siteBackgroundImage: "",
+    siteBackgroundOverlay: "#FFFFFF",
+    siteBackgroundOverlayOpacity: 0,
+  },
 });
 
 const normalizeThemeSettings = (rawValue) => {
@@ -627,6 +642,7 @@ const normalizeThemeSettings = (rawValue) => {
   if (!parsed.success) return defaults;
   const value = parsed.data;
   const palette = value.palette ?? defaults.palette;
+  const assets = value.assets ?? defaults.assets;
   if ("heroStart" in palette || "heroEnd" in palette) {
     const legacy = palette;
     return {
@@ -649,12 +665,14 @@ const normalizeThemeSettings = (rawValue) => {
         heroText: defaults.palette.heroText,
         heroDecor: defaults.palette.heroDecor,
       },
+      assets,
     };
   }
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
     preset: typeof value.preset === "string" && value.preset.trim().length ? value.preset.trim() : defaults.preset,
     palette,
+    assets,
   };
 };
 

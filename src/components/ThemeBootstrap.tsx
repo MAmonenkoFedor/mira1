@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { apiRequest } from "@/integrations/api/client";
-import { applyThemePalette, ThemeSettings } from "@/lib/theme";
+import { applyThemeSettings, ThemeSettings } from "@/lib/theme";
 
 const ThemeBootstrap = () => {
   useEffect(() => {
@@ -9,7 +9,7 @@ const ThemeBootstrap = () => {
       .then((settings) => {
         if (cancelled) return;
         if (settings?.enabled && settings?.palette) {
-          applyThemePalette(settings.palette);
+          applyThemeSettings(settings);
         }
       })
       .catch(() => undefined);

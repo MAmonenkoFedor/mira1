@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiRequest, getErrorMessage } from "@/integrations/api/client";
-import { applyThemePalette, ThemePalette, ThemeSettings } from "@/lib/theme";
+import { applyThemeSettings, ThemePalette, ThemeSettings } from "@/lib/theme";
 
 const presets: Array<{ key: string; title: string; palette: ThemePalette }> = [
   {
@@ -122,6 +122,12 @@ const ThemeAdmin = () => {
   const [enabled, setEnabled] = useState(false);
   const [presetKey, setPresetKey] = useState(presets[0].key);
   const [palette, setPalette] = useState<ThemePalette>(presets[0].palette);
+  const [assets, setAssets] = useState<NonNullable<ThemeSettings["assets"]>>({
+    backgroundMode: "color",
+    siteBackgroundImage: "",
+    siteBackgroundOverlay: "#FFFFFF",
+    siteBackgroundOverlayOpacity: 0,
+  });
 
   const selectedPreset = useMemo(() => presets.find((p) => p.key === presetKey) ?? presets[0], [presetKey]);
 
@@ -135,6 +141,13 @@ const ThemeAdmin = () => {
       setEnabled(nextEnabled);
       setPresetKey(preset.key);
       setPalette(data?.palette ?? preset.palette);
+      setAssets({
+        backgroundMode: data?.assets?.backgroundMode === "image" ? "image" : "color",
+        siteBackgroundImage: data?.assets?.siteBackgroundImage ?? "",
+        siteBackgroundOverlay: data?.assets?.siteBackgroundOverlay ?? "#FFFFFF",
+        siteBackgroundOverlayOpacity:
+          typeof data?.assets?.siteBackgroundOverlayOpacity === "number" ? data.assets.siteBackgroundOverlayOpacity : 0,
+      });
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Не удалось загрузить тему"));
     } finally {
@@ -148,7 +161,7 @@ const ThemeAdmin = () => {
 
   const applyPreview = () => {
     if (!enabled) return;
-    applyThemePalette(palette);
+    applyThemeSettings({ enabled: true, preset: presetKey, palette, assets });
     toast.success("Предпросмотр применён");
   };
 
@@ -156,7 +169,7 @@ const ThemeAdmin = () => {
     const preset = presets.find((p) => p.key === key) ?? presets[0];
     setPresetKey(preset.key);
     setPalette(preset.palette);
-    if (enabled) applyThemePalette(preset.palette);
+    if (enabled) applyThemeSettings({ enabled: true, preset: preset.key, palette: preset.palette, assets });
   };
 
   const save = async () => {
@@ -164,7 +177,7 @@ const ThemeAdmin = () => {
     try {
       await apiRequest("/api/admin/theme", {
         method: "PUT",
-        body: JSON.stringify({ enabled, preset: presetKey, palette }),
+        body: JSON.stringify({ enabled, preset: presetKey, palette, assets }),
       });
       toast.success("Тема сохранена");
     } catch (error: unknown) {
@@ -269,6 +282,72 @@ const ThemeAdmin = () => {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Фон сайта</CardTitle>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Режим</Label>
+              <select
+                value={assets.backgroundMode === "image" ? "image" : "color"}
+                onChange={(e) =>
+                  setAssets((prev) => ({ ...prev, backgroundMode: e.target.value === "image" ? "image" : "color" }))
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                disabled={loading}
+              >
+                <option value="color">Цвет / градиенты темы</option>
+                <option value="image">Фоновая картинка</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>URL фоновой картинки</Label>
+              <Input
+                value={assets.siteBackgroundImage ?? ""}
+                onChange={(e) => setAssets((prev) => ({ ...prev, siteBackgroundImage: e.target.value }))}
+                placeholder="https://... или /uploads/..."
+                disabled={loading || assets.backgroundMode !== "image"}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Оверлей (цвет)</Label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="color"
+                  value={assets.siteBackgroundOverlay ?? "#FFFFFF"}
+                  onChange={(e) => setAssets((prev) => ({ ...prev, siteBackgroundOverlay: e.target.value }))}
+                  disabled={loading}
+                  className="h-10 w-12 rounded-md border border-input bg-background"
+                />
+                <Input
+                  value={assets.siteBackgroundOverlay ?? "#FFFFFF"}
+                  onChange={(e) => setAssets((prev) => ({ ...prev, siteBackgroundOverlay: e.target.value }))}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Оверлей (прозрачность 0..1)</Label>
+              <Input
+                inputMode="decimal"
+                value={String(assets.siteBackgroundOverlayOpacity ?? 0)}
+                onChange={(e) => {
+                  const nextValue = Number.parseFloat(e.target.value);
+                  setAssets((prev) => ({
+                    ...prev,
+                    siteBackgroundOverlayOpacity: Number.isFinite(nextValue) ? Math.min(1, Math.max(0, nextValue)) : 0,
+                  }));
+                }}
+                disabled={loading}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

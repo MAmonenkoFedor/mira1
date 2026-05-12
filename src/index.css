@@ -62,6 +62,12 @@
     --hero-text: 210 29% 17%;
     --hero-decor: 43 74% 49%;
 
+    /* Site background image */
+    --site-bg-mode: color;
+    --site-bg-image: none;
+    --site-bg-overlay: 0 0% 100%;
+    --site-bg-overlay-opacity: 0;
+
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -109,6 +115,15 @@
 
   body {
     @apply bg-background text-foreground font-body antialiased;
+    background-image:
+      linear-gradient(
+        hsl(var(--site-bg-overlay) / var(--site-bg-overlay-opacity)),
+        hsl(var(--site-bg-overlay) / var(--site-bg-overlay-opacity))
+      ),
+      var(--site-bg-image);
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
   }
 
   h1, h2, h3, h4, h5, h6 {

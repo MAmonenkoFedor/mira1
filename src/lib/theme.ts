@@ -20,6 +20,12 @@ type ThemeSettings = {
   enabled: boolean;
   preset?: string | null;
   palette: ThemePalette;
+  assets?: {
+    backgroundMode?: "color" | "image";
+    siteBackgroundImage?: string | null;
+    siteBackgroundOverlay?: string | null;
+    siteBackgroundOverlayOpacity?: number | null;
+  };
 };
 
 const normalizeHex = (value: string) => {
@@ -169,6 +175,31 @@ export const applyThemePalette = (palette: ThemePalette) => {
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
+};
+
+const safeCssUrl = (value: string) => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "none";
+  if (trimmed.startsWith("/") || /^https?:\/\//i.test(trimmed)) {
+    const escaped = trimmed.replace(/"/g, "%22").replace(/\)/g, "%29").replace(/\(/g, "%28");
+    return `url("${escaped}")`;
+  }
+  return "none";
+};
+
+export const applyThemeSettings = (settings: ThemeSettings) => {
+  applyThemePalette(settings.palette);
+  const root = document.documentElement;
+  const mode = settings.assets?.backgroundMode === "image" ? "image" : "color";
+  const img = safeCssUrl(settings.assets?.siteBackgroundImage || "");
+  const overlayHex = settings.assets?.siteBackgroundOverlay || "#FFFFFF";
+  const opacityRaw = settings.assets?.siteBackgroundOverlayOpacity;
+  const opacity = typeof opacityRaw === "number" && Number.isFinite(opacityRaw) ? Math.min(1, Math.max(0, opacityRaw)) : 0;
+
+  root.style.setProperty("--site-bg-mode", mode);
+  root.style.setProperty("--site-bg-image", mode === "image" ? img : "none");
+  root.style.setProperty("--site-bg-overlay", hexToHslTriplet(overlayHex));
+  root.style.setProperty("--site-bg-overlay-opacity", String(opacity));
 };
 
 export type { ThemePalette, ThemeSettings };
