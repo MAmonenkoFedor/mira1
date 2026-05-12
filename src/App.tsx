@@ -30,10 +30,12 @@ import AdminHero from "./pages/admin/Hero";
 import AdminHomeLayout from "./pages/admin/HomeLayout";
 import AdminClientMessages from "./pages/admin/ClientMessages";
 import IntegrationsAdmin from "./pages/admin/Integrations";
+import AdminTheme from "./pages/admin/Theme";
 import InfoPage from "./pages/InfoPage";
 import ArticlesList from "./pages/ArticlesList";
 import ArticleDetail from "./pages/ArticleDetail";
 import NotFound from "./pages/NotFound";
+import ThemeBootstrap from "./components/ThemeBootstrap";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +48,7 @@ const App = () => (
           <FavoritesProvider>
             <Toaster />
             <Sonner />
+            <ThemeBootstrap />
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -66,6 +69,7 @@ const App = () => (
                 <Route path="/admin/home-layout" element={<AdminGuard><AdminHomeLayout /></AdminGuard>} />
                 <Route path="/admin/client-messages" element={<AdminGuard><AdminClientMessages /></AdminGuard>} />
                 <Route path="/admin/integrations" element={<AdminGuard><IntegrationsAdmin /></AdminGuard>} />
+                <Route path="/admin/theme" element={<AdminGuard><AdminTheme /></AdminGuard>} />
                 <Route path="/admin/orders" element={<AdminGuard><AdminOrders /></AdminGuard>} />
                 <Route path="/admin/reviews" element={<AdminGuard><AdminReviews /></AdminGuard>} />
                 <Route path="/admin/pages" element={<AdminGuard><AdminPages /></AdminGuard>} />

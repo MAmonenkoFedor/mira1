@@ -568,6 +568,71 @@ const integrationProviderSchema = z.object({
     .optional(),
 });
 
+const hexColorSchema = z
+  .string()
+  .max(20)
+  .transform((value) => value.trim())
+  .refine((value) => /^#?[0-9a-fA-F]{6}$/.test(value), { message: "invalid_hex" })
+  .transform((value) => (value.startsWith("#") ? value.toUpperCase() : `#${value.toUpperCase()}`));
+
+const themePaletteSchema = z.object({
+  background: hexColorSchema,
+  card: hexColorSchema,
+  foreground: hexColorSchema,
+  primary: hexColorSchema,
+  accent: hexColorSchema,
+  secondary: hexColorSchema,
+  muted: hexColorSchema,
+  mutedForeground: hexColorSchema,
+  border: hexColorSchema,
+  saleRed: hexColorSchema,
+  heroStart: hexColorSchema,
+  heroEnd: hexColorSchema,
+});
+
+const themeSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  preset: z.string().max(50).optional().nullable(),
+  palette: themePaletteSchema.optional(),
+});
+
+const buildDefaultThemeSettings = () => ({
+  enabled: false,
+  preset: "premium_light",
+  palette: {
+    background: "#F7F9FC",
+    card: "#FFFFFF",
+    foreground: "#172033",
+    primary: "#123A63",
+    accent: "#D9A441",
+    secondary: "#EEF2F7",
+    muted: "#EEF2F7",
+    mutedForeground: "#6B7280",
+    border: "#E5E7EB",
+    saleRed: "#D92D20",
+    heroStart: "#123A63",
+    heroEnd: "#0B2A48",
+  },
+});
+
+const normalizeThemeSettings = (rawValue) => {
+  const defaults = buildDefaultThemeSettings();
+  const parsed = themeSettingsSchema.safeParse(rawValue);
+  if (!parsed.success) return defaults;
+  const value = parsed.data;
+  return {
+    enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
+    preset: typeof value.preset === "string" && value.preset.trim().length ? value.preset.trim() : defaults.preset,
+    palette: value.palette ?? defaults.palette,
+  };
+};
+
+const getThemeSettings = async () => {
+  const { rows } = await query(`SELECT value FROM site_settings WHERE key = 'theme_settings' LIMIT 1`);
+  const raw = rows[0]?.value ?? buildDefaultThemeSettings();
+  return normalizeThemeSettings(raw);
+};
+
 const buildDefaultIntegrationSettings = () => ({
   sms: {
     provider: process.env.SMS_PROVIDER === "smsc" ? "smsc" : "none",
@@ -1411,6 +1476,10 @@ const ensureSchema = async () => {
     `INSERT INTO site_settings (key, value) VALUES ('integration_settings', $1::jsonb) ON CONFLICT (key) DO NOTHING`,
     [JSON.stringify(buildDefaultIntegrationSettings())],
   );
+  await query(
+    `INSERT INTO site_settings (key, value) VALUES ('theme_settings', $1::jsonb) ON CONFLICT (key) DO NOTHING`,
+    [JSON.stringify(buildDefaultThemeSettings())],
+  );
 
   await ensureConstraint(
     `ALTER TABLE reviews ADD CONSTRAINT reviews_rating_range_check CHECK (rating >= 1 AND rating <= 5) NOT VALID;`,
@@ -2067,6 +2136,14 @@ app.get(
     const { rows } = await query(`SELECT value FROM site_settings WHERE key = 'client_messages' LIMIT 1`);
     const rawValue = rows[0]?.value ?? buildDefaultClientMessages();
     res.json(normalizeClientMessages(rawValue));
+  }),
+);
+
+app.get(
+  "/api/theme",
+  asyncHandler(async (_req, res) => {
+    const theme = await getThemeSettings();
+    res.json(theme);
   }),
 );
 
@@ -3236,6 +3313,45 @@ app.put(
       `
         INSERT INTO site_settings (key, value, updated_at)
         VALUES ('client_messages', $1::jsonb, now())
+        ON CONFLICT (key)
+        DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+      `,
+      [JSON.stringify(next)],
+    );
+    res.status(204).end();
+  }),
+);
+
+app.get(
+  "/api/admin/theme",
+  requireAuth,
+  requireRole("admin"),
+  asyncHandler(async (_req, res) => {
+    const theme = await getThemeSettings();
+    res.json(theme);
+  }),
+);
+
+app.put(
+  "/api/admin/theme",
+  requireAuth,
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const parsed = themeSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_payload", details: parsed.error.flatten() });
+      return;
+    }
+    const current = await getThemeSettings();
+    const next = normalizeThemeSettings({
+      ...current,
+      ...parsed.data,
+      palette: parsed.data.palette ?? current.palette,
+    });
+    await query(
+      `
+        INSERT INTO site_settings (key, value, updated_at)
+        VALUES ('theme_settings', $1::jsonb, now())
         ON CONFLICT (key)
         DO UPDATE SET value = EXCLUDED.value, updated_at = now()
       `,

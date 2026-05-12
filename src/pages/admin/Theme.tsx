@@ -1,0 +1,261 @@
+import { useEffect, useMemo, useState } from "react";
+import { AdminLayout } from "@/components/AdminLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { apiRequest, getErrorMessage } from "@/integrations/api/client";
+import { applyThemePalette, ThemePalette, ThemeSettings } from "@/lib/theme";
+
+const presets: Array<{ key: string; title: string; palette: ThemePalette }> = [
+  {
+    key: "premium_light",
+    title: "Вариант 1 — Светлый premium / маркетплейсный",
+    palette: {
+      background: "#F7F9FC",
+      card: "#FFFFFF",
+      foreground: "#172033",
+      primary: "#123A63",
+      accent: "#D9A441",
+      secondary: "#EEF2F7",
+      muted: "#EEF2F7",
+      mutedForeground: "#6B7280",
+      border: "#E5E7EB",
+      saleRed: "#D92D20",
+      heroStart: "#123A63",
+      heroEnd: "#0B2A48",
+    },
+  },
+  {
+    key: "blue_cream",
+    title: "Вариант 2 — Синий + кремовый “подарочный”",
+    palette: {
+      background: "#FFF8EC",
+      card: "#FFFFFF",
+      foreground: "#1F2933",
+      primary: "#153E64",
+      accent: "#C9982E",
+      secondary: "#FFF1D7",
+      muted: "#FFF1D7",
+      mutedForeground: "#6B7280",
+      border: "#E8CFA3",
+      saleRed: "#D92D20",
+      heroStart: "#153E64",
+      heroEnd: "#0F3557",
+    },
+  },
+  {
+    key: "premium_dark_light",
+    title: "Вариант 3 — Premium dark (легче текущего)",
+    palette: {
+      background: "#F6F8FB",
+      card: "#FFFFFF",
+      foreground: "#111827",
+      primary: "#1E4B73",
+      accent: "#E3B341",
+      secondary: "#EEF2F7",
+      muted: "#EEF2F7",
+      mutedForeground: "#6B7280",
+      border: "#E5E7EB",
+      saleRed: "#D92D20",
+      heroStart: "#102F4E",
+      heroEnd: "#1E4B73",
+    },
+  },
+  {
+    key: "ecommerce_red",
+    title: "Вариант 4 — Белый + красный акцент (e-commerce)",
+    palette: {
+      background: "#FFFFFF",
+      card: "#FFFFFF",
+      foreground: "#1F2933",
+      primary: "#153E64",
+      accent: "#D6A33A",
+      secondary: "#F4F6F8",
+      muted: "#F4F6F8",
+      mutedForeground: "#6B7280",
+      border: "#E5E7EB",
+      saleRed: "#D92D20",
+      heroStart: "#153E64",
+      heroEnd: "#0F3557",
+    },
+  },
+  {
+    key: "minimal_clean",
+    title: "Вариант 5 — Минималистичный “чистый бренд”",
+    palette: {
+      background: "#FAFAFA",
+      card: "#FFFFFF",
+      foreground: "#111827",
+      primary: "#0F3557",
+      accent: "#C89B3C",
+      secondary: "#F4F6F8",
+      muted: "#F4F6F8",
+      mutedForeground: "#6B7280",
+      border: "#E5E7EB",
+      saleRed: "#D92D20",
+      heroStart: "#0F3557",
+      heroEnd: "#123A63",
+    },
+  },
+];
+
+const ThemeAdmin = () => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [presetKey, setPresetKey] = useState(presets[0].key);
+  const [palette, setPalette] = useState<ThemePalette>(presets[0].palette);
+
+  const selectedPreset = useMemo(() => presets.find((p) => p.key === presetKey) ?? presets[0], [presetKey]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<ThemeSettings>("/api/admin/theme");
+      const nextEnabled = Boolean(data?.enabled);
+      const nextPreset = typeof data?.preset === "string" && data.preset ? data.preset : presets[0].key;
+      const preset = presets.find((p) => p.key === nextPreset) ?? presets[0];
+      setEnabled(nextEnabled);
+      setPresetKey(preset.key);
+      setPalette(data?.palette ?? preset.palette);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Не удалось загрузить тему"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const applyPreview = () => {
+    if (!enabled) return;
+    applyThemePalette(palette);
+    toast.success("Предпросмотр применён");
+  };
+
+  const applyPreset = (key: string) => {
+    const preset = presets.find((p) => p.key === key) ?? presets[0];
+    setPresetKey(preset.key);
+    setPalette(preset.palette);
+    if (enabled) applyThemePalette(preset.palette);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await apiRequest("/api/admin/theme", {
+        method: "PUT",
+        body: JSON.stringify({ enabled, preset: presetKey, palette }),
+      });
+      toast.success("Тема сохранена");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Не удалось сохранить тему"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="font-heading font-bold text-2xl">Дизайн</h1>
+            <p className="text-sm text-muted-foreground">Выбор стиля и управление базовой палитрой.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={applyPreview} disabled={loading || saving || !enabled}>
+              Предпросмотр
+            </Button>
+            <Button type="button" onClick={save} disabled={loading || saving}>
+              {saving ? "Сохраняю..." : "Сохранить"}
+            </Button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Режим</CardTitle>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Включить управление темой</Label>
+              <select
+                value={enabled ? "on" : "off"}
+                onChange={(e) => setEnabled(e.target.value === "on")}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                disabled={loading}
+              >
+                <option value="off">Выключено (как сейчас)</option>
+                <option value="on">Включено</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Пресет</Label>
+              <select
+                value={presetKey}
+                onChange={(e) => applyPreset(e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                disabled={loading}
+              >
+                {presets.map((preset) => (
+                  <option key={preset.key} value={preset.key}>
+                    {preset.title}
+                  </option>
+                ))}
+              </select>
+              <div className="text-xs text-muted-foreground">{selectedPreset.title}</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Палитра</CardTitle>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-2 gap-4">
+            {(
+              [
+                ["background", "Основной фон"],
+                ["card", "Карточки / блоки"],
+                ["foreground", "Основной текст"],
+                ["primary", "Фирменный цвет / CTA"],
+                ["accent", "Акцент (золото)"],
+                ["saleRed", "Скидки / акции (красный)"],
+                ["secondary", "Вторичный фон"],
+                ["border", "Границы / разделители"],
+                ["mutedForeground", "Вторичный текст"],
+                ["heroStart", "Hero градиент (старт)"],
+                ["heroEnd", "Hero градиент (финиш)"],
+              ] as Array<[keyof ThemePalette, string]>
+            ).map(([key, title]) => (
+              <div className="space-y-2" key={key}>
+                <Label>{title}</Label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={palette[key]}
+                    onChange={(e) => setPalette((prev) => ({ ...prev, [key]: e.target.value }))}
+                    disabled={loading}
+                    className="h-10 w-12 rounded-md border border-input bg-background"
+                  />
+                  <Input
+                    value={palette[key]}
+                    onChange={(e) => setPalette((prev) => ({ ...prev, [key]: e.target.value }))}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default ThemeAdmin;
